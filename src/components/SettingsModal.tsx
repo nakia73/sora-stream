@@ -28,6 +28,7 @@ export function SettingsModal({
   const [apiKey, setApiKey] = useState(currentApiKey || '');
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
+  const [apiResponse, setApiResponse] = useState<any>(null);
 
   const handleSave = () => {
     if (apiKey.trim()) {
@@ -43,56 +44,58 @@ export function SettingsModal({
     }
 
     setTestStatus('testing');
-    setTestMessage('');
+    setTestMessage('実際にSora2 APIを呼び出してテスト中...');
+    setApiResponse(null);
 
     try {
-      // OpenAI APIのモデル一覧エンドポイントでテスト（軽量なリクエスト）
-      const response = await fetch('https://api.openai.com/v1/models', {
-        method: 'GET',
+      // 実際にSora2 APIに動画生成リクエストを送る
+      const response = await fetch('https://api.openai.com/v1/videos', {
+        method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey.trim()}`,
         },
+        body: JSON.stringify({
+          model: 'sora-2',
+          prompt: 'API test: a simple red circle',
+          size: '1280x720',
+          seconds: '4',
+        }),
       });
 
+      const responseData = await response.json();
+      setApiResponse(responseData);
+
       if (!response.ok) {
-        const error = await response.json();
-        const errorMessage = error.error?.message || 'APIキーの検証に失敗しました';
+        const errorMessage = responseData.error?.message || 'APIリクエストに失敗しました';
+        const errorCode = responseData.error?.code || responseData.error?.type || 'unknown';
         
-        let detailedMessage = errorMessage;
-        if (response.status === 401) {
-          detailedMessage = 'APIキーが無効です。正しいAPIキーを入力してください。';
-        } else if (response.status === 403) {
-          detailedMessage = 'アクセスが拒否されました。組織の認証状態を確認してください。';
+        let detailedMessage = `❌ ${errorMessage}`;
+        if (errorCode === 'billing_hard_limit_reached') {
+          detailedMessage = '❌ OpenAIの課金制限に達しています。\n\nhttps://platform.openai.com/settings/organization/billing で課金設定を確認してください。';
+        } else if (response.status === 403 && errorMessage.includes('organization must be verified')) {
+          detailedMessage = '❌ OpenAI組織の認証が必要です。\n\nhttps://platform.openai.com/settings/organization/general\n\n認証後、反映まで最大15分かかる場合があります。';
+        } else if (response.status === 401) {
+          detailedMessage = '❌ APIキーが無効です。正しいAPIキーを入力してください。';
         } else if (response.status === 429) {
-          detailedMessage = 'レート制限に達しました。しばらく待ってから再度お試しください。';
+          detailedMessage = '❌ レート制限に達しました。しばらく待ってから再度お試しください。';
         }
         
         setTestStatus('error');
         setTestMessage(detailedMessage);
-        toast.error(detailedMessage);
+        toast.error('Sora2 APIテスト失敗', { duration: 5000 });
         return;
       }
 
-      const data = await response.json();
-      
-      // Sora2モデルが利用可能かチェック
-      const hasSora2 = data.data?.some((model: any) => 
-        model.id === 'sora-2' || model.id === 'sora-2-pro'
-      );
-
-      if (hasSora2) {
-        setTestStatus('success');
-        setTestMessage('✅ APIキーは有効です。Sora2モデルが利用可能です。');
-        toast.success('APIキーのテストに成功しました！');
-      } else {
-        setTestStatus('success');
-        setTestMessage('✅ APIキーは有効ですが、Sora2モデルへのアクセスが確認できませんでした。');
-        toast.warning('APIキーは有効ですが、Sora2モデルが見つかりません');
-      }
+      // 成功: video_idが返ってきた
+      setTestStatus('success');
+      setTestMessage(`✅ Sora2 APIが正常に動作しています！\n\nテスト動画ID: ${responseData.id}\nステータス: ${responseData.status}\n\n実際に動画生成リクエストが受け付けられました。`);
+      toast.success('Sora2 APIテスト成功！実際にリクエストが受け付けられました。');
     } catch (error) {
       console.error('APIテストエラー:', error);
       setTestStatus('error');
-      setTestMessage('ネットワークエラーが発生しました');
+      setTestMessage('❌ ネットワークエラーが発生しました');
+      setApiResponse({ error: error instanceof Error ? error.message : 'Unknown error' });
       toast.error('APIテストに失敗しました');
     }
   };
@@ -159,20 +162,40 @@ export function SettingsModal({
             </Button>
 
             {testStatus === 'success' && (
-              <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-3">
+              <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-3 space-y-2">
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-green-600 dark:text-green-400">{testMessage}</p>
+                  <p className="text-xs text-green-600 dark:text-green-400 whitespace-pre-line">{testMessage}</p>
                 </div>
+                {apiResponse && (
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-green-600 dark:text-green-400 hover:underline">
+                      API応答の詳細を表示
+                    </summary>
+                    <pre className="mt-2 p-2 bg-black/20 rounded overflow-auto text-[10px] text-green-600 dark:text-green-400">
+                      {JSON.stringify(apiResponse, null, 2)}
+                    </pre>
+                  </details>
+                )}
               </div>
             )}
 
             {testStatus === 'error' && (
-              <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3">
+              <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3 space-y-2">
                 <div className="flex items-start gap-2">
                   <XCircle className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
-                  <p className="text-xs text-destructive">{testMessage}</p>
+                  <p className="text-xs text-destructive whitespace-pre-line">{testMessage}</p>
                 </div>
+                {apiResponse && (
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-destructive hover:underline">
+                      エラー応答の詳細を表示
+                    </summary>
+                    <pre className="mt-2 p-2 bg-black/20 rounded overflow-auto text-[10px] text-destructive">
+                      {JSON.stringify(apiResponse, null, 2)}
+                    </pre>
+                  </details>
+                )}
               </div>
             )}
           </div>
