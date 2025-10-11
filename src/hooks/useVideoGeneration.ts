@@ -68,44 +68,93 @@ export function useVideoGeneration() {
           referenceImage: referenceImage || null,
         });
 
-        // リクエストボディを構築
-        const requestBody: any = {
-          model: options.model,
-          prompt: prompt,
-          size: options.size,
-          seconds: options.seconds,
-        };
+        // FormDataを構築（OpenAI Sora APIはmultipart/form-data形式）
+        const formData = new FormData();
+        formData.append('model', options.model);
+        formData.append('prompt', prompt);
+        formData.append('size', options.size);
+        formData.append('seconds', options.seconds);
 
         // 参照画像がある場合は追加
         if (referenceImage) {
-          requestBody.image = referenceImage;
+          try {
+            // Base64をBlobに変換
+            const base64Response = await fetch(referenceImage);
+            const blob = await base64Response.blob();
+            formData.append('input_reference', blob, 'reference.png');
+            console.log('📷 参照画像を追加しました');
+          } catch (error) {
+            console.error('参照画像の変換エラー:', error);
+            toast.error('参照画像の処理に失敗しました');
+            throw error;
+          }
         }
 
-        // 動画生成リクエスト
+        console.log('🎬 動画生成リクエスト送信:', {
+          model: options.model,
+          prompt: prompt.substring(0, 50) + '...',
+          size: options.size,
+          seconds: options.seconds,
+          hasImage: !!referenceImage,
+        });
+
+        // 動画生成リクエスト（multipart/form-data形式）
         const response = await fetch('https://api.openai.com/v1/videos', {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json',
             Authorization: `Bearer ${apiKey}`,
+            // Content-Typeは自動設定されるため指定しない（boundary付きで送信される）
           },
-          body: JSON.stringify(requestBody),
+          body: formData,
         });
 
         if (!response.ok) {
-          const error = await response.json();
-          const errorMessage = error.error?.message || '動画生成リクエストに失敗しました';
-          const errorCode = error.error?.code || error.error?.type || 'unknown';
+          let error;
+          let errorMessage = '動画生成リクエストに失敗しました';
+          let errorCode = 'unknown';
+          
+          try {
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+              error = await response.json();
+              errorMessage = error.error?.message || errorMessage;
+              errorCode = error.error?.code || error.error?.type || 'unknown';
+            } else {
+              const textError = await response.text();
+              console.error('❌ 非JSONエラーレスポンス:', textError);
+              errorMessage = `${errorMessage} (${response.status}: ${response.statusText})`;
+            }
+          } catch (parseError) {
+            console.error('❌ エラーレスポンスのパースに失敗:', parseError);
+            errorMessage = `${errorMessage} (${response.status}: ${response.statusText})`;
+          }
+          
+          console.error('❌ APIエラー詳細:', {
+            status: response.status,
+            statusText: response.statusText,
+            errorCode,
+            errorMessage,
+            error,
+          });
           
           // エラータイプに応じた詳細メッセージ
           let detailedMessage = errorMessage;
           if (errorCode === 'billing_hard_limit_reached') {
             detailedMessage = '❌ OpenAIの課金制限に達しています。\n\nOpenAIダッシュボードで課金設定を確認してください:\nhttps://platform.openai.com/settings/organization/billing';
-          } else if (response.status === 403 && errorMessage.includes('organization must be verified')) {
-            detailedMessage = '❌ OpenAI組織の認証が必要です。\n\n以下のURLから組織認証を行ってください:\nhttps://platform.openai.com/settings/organization/general\n\n認証後、反映まで最大15分かかる場合があります。';
+          } else if (response.status === 403) {
+            if (errorMessage.includes('organization must be verified')) {
+              detailedMessage = '❌ OpenAI組織の認証が必要です。\n\n以下のURLから組織認証を行ってください:\nhttps://platform.openai.com/settings/organization/general\n\n認証後、反映まで最大15分かかる場合があります。';
+            } else {
+              detailedMessage = `❌ アクセスが拒否されました。\n\n${errorMessage}\n\nAPIキーの権限を確認してください。`;
+            }
           } else if (response.status === 401) {
             detailedMessage = '❌ APIキーが無効です。\n\n設定画面から正しいAPIキーを入力してください。';
           } else if (response.status === 429) {
             detailedMessage = '❌ レート制限に達しました。\n\nしばらく待ってから再度お試しください。';
+          } else if (response.status === 400) {
+            detailedMessage = `❌ リクエストが不正です。\n\n${errorMessage}\n\nプロンプトや設定を確認してください。`;
+          } else if (response.status >= 500) {
+            detailedMessage = `❌ OpenAIサーバーエラーが発生しました。\n\n${errorMessage}\n\nしばらく待ってから再度お試しください。`;
           }
           
           throw new Error(detailedMessage);
@@ -128,7 +177,7 @@ export function useVideoGeneration() {
         // ポーリング開始
         pollVideoStatus(videoId);
       } catch (error) {
-        console.error('動画生成エラー:', error);
+        console.error('❌ 動画生成エラー:', error);
         const errorMessage = error instanceof Error ? error.message : '動画生成に失敗しました';
         
         // 複数行のエラーメッセージを表示
@@ -160,7 +209,15 @@ export function useVideoGeneration() {
           });
 
           if (!response.ok) {
-            throw new Error('ステータス確認に失敗しました');
+            let errorMsg = 'ステータス確認に失敗しました';
+            try {
+              const errorData = await response.json();
+              errorMsg = errorData.error?.message || errorMsg;
+              console.error('❌ ステータス確認エラー:', errorData);
+            } catch {
+              console.error('❌ ステータス確認エラー: HTTP', response.status);
+            }
+            throw new Error(errorMsg);
           }
 
           const data = await response.json();
@@ -220,10 +277,17 @@ export function useVideoGeneration() {
             console.log(`⏳ ポーリング継続 - ステータス: ${data.status}, 進捗: ${data.progress}%`);
             // 継続してポーリング
             setTimeout(poll, POLLING_INTERVAL);
+          } else {
+            console.warn('⚠️ 未知のステータス:', data.status);
+            // 未知のステータスでもポーリングを継続
+            setTimeout(poll, POLLING_INTERVAL);
           }
         } catch (error) {
-          console.error('ステータス確認エラー:', error);
-          toast.error('ステータス確認に失敗しました');
+          console.error('❌ ステータス確認エラー:', error);
+          const errorMsg = error instanceof Error ? error.message : 'ステータス確認に失敗しました';
+          toast.error(`ステータス確認エラー: ${errorMsg}`, {
+            duration: 8000,
+          });
           setVideo((prev) => ({
             ...prev,
             status: 'failed',
