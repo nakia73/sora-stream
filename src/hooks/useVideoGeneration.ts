@@ -2,9 +2,8 @@ import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 
 export interface GenerationOptions {
-  resolution: '720p' | '1080p';
-  aspectRatio: '16:9' | '9:16' | '1:1';
-  duration: 4 | 8 | 12;
+  size: '1280x720' | '720x1280' | '720x720' | '1792x1024' | '1024x1792';
+  seconds: '4' | '8' | '12';
   model: 'sora-2' | 'sora-2-pro';
 }
 
@@ -31,9 +30,8 @@ export function useVideoGeneration() {
     videoUrl: null,
     prompt: '',
     options: {
-      resolution: '720p',
-      aspectRatio: '16:9',
-      duration: 4,
+      size: '1280x720',
+      seconds: '4',
       model: 'sora-2',
     },
   });
@@ -71,9 +69,8 @@ export function useVideoGeneration() {
           body: JSON.stringify({
             model: options.model,
             prompt: prompt,
-            resolution: options.resolution,
-            aspect_ratio: options.aspectRatio,
-            duration: options.duration,
+            size: options.size,
+            seconds: options.seconds,
           }),
         });
 
@@ -188,9 +185,8 @@ export function useVideoGeneration() {
       videoUrl: null,
       prompt: '',
       options: {
-        resolution: '720p',
-        aspectRatio: '16:9',
-        duration: 4,
+        size: '1280x720',
+        seconds: '4',
         model: 'sora-2',
       },
     });

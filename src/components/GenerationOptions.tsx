@@ -18,54 +18,40 @@ export function GenerationOptions({ options, onChange, disabled }: GenerationOpt
   return (
     <div className="grid grid-cols-2 gap-4">
       <div className="space-y-2">
-        <Label htmlFor="resolution">解像度</Label>
+        <Label htmlFor="size">解像度・向き</Label>
         <Select
-          value={options.resolution}
+          value={options.size}
           onValueChange={(value) =>
-            onChange({ ...options, resolution: value as '720p' | '1080p' })
+            onChange({
+              ...options,
+              size: value as '1280x720' | '720x1280' | '720x720' | '1792x1024' | '1024x1792',
+            })
           }
           disabled={disabled}
         >
-          <SelectTrigger id="resolution" className="bg-muted border-border">
+          <SelectTrigger id="size" className="bg-muted border-border">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="720p">720p</SelectItem>
-            <SelectItem value="1080p">1080p</SelectItem>
+            <SelectItem value="1280x720">1280x720 (横長・HD)</SelectItem>
+            <SelectItem value="720x1280">720x1280 (縦長)</SelectItem>
+            <SelectItem value="720x720">720x720 (正方形)</SelectItem>
+            <SelectItem value="1792x1024">1792x1024 (横長・高解像度) ※Pro</SelectItem>
+            <SelectItem value="1024x1792">1024x1792 (縦長・高解像度) ※Pro</SelectItem>
           </SelectContent>
         </Select>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="aspectRatio">アスペクト比</Label>
+        <Label htmlFor="seconds">長さ</Label>
         <Select
-          value={options.aspectRatio}
+          value={options.seconds}
           onValueChange={(value) =>
-            onChange({ ...options, aspectRatio: value as '16:9' | '9:16' | '1:1' })
+            onChange({ ...options, seconds: value as '4' | '8' | '12' })
           }
           disabled={disabled}
         >
-          <SelectTrigger id="aspectRatio" className="bg-muted border-border">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="16:9">16:9 (横長)</SelectItem>
-            <SelectItem value="9:16">9:16 (縦長)</SelectItem>
-            <SelectItem value="1:1">1:1 (正方形)</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-2">
-        <Label htmlFor="duration">長さ</Label>
-        <Select
-          value={options.duration.toString()}
-          onValueChange={(value) =>
-            onChange({ ...options, duration: parseInt(value) as 4 | 8 | 12 })
-          }
-          disabled={disabled}
-        >
-          <SelectTrigger id="duration" className="bg-muted border-border">
+          <SelectTrigger id="seconds" className="bg-muted border-border">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -76,7 +62,7 @@ export function GenerationOptions({ options, onChange, disabled }: GenerationOpt
         </Select>
       </div>
 
-      <div className="space-y-2">
+      <div className="space-y-2 col-span-2">
         <Label htmlFor="model">モデル</Label>
         <Select
           value={options.model}
@@ -89,8 +75,8 @@ export function GenerationOptions({ options, onChange, disabled }: GenerationOpt
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="sora-2">Sora 2</SelectItem>
-            <SelectItem value="sora-2-pro">Sora 2 Pro</SelectItem>
+            <SelectItem value="sora-2">Sora 2 ($0.10/秒)</SelectItem>
+            <SelectItem value="sora-2-pro">Sora 2 Pro ($0.30〜$0.50/秒)</SelectItem>
           </SelectContent>
         </Select>
       </div>
