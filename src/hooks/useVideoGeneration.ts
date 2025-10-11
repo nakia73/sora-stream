@@ -50,6 +50,12 @@ export function useVideoGeneration() {
       }
 
       try {
+        // 既存の動画URLをクリーンアップ（メモリリーク防止）
+        if (video.videoUrl && video.videoUrl.startsWith('blob:')) {
+          URL.revokeObjectURL(video.videoUrl);
+          console.log('🗑️ 古い動画URLをクリーンアップしました');
+        }
+
         setVideo({
           id: null,
           status: 'queued',
@@ -129,7 +135,7 @@ export function useVideoGeneration() {
         }));
       }
     },
-    [apiKey]
+    [apiKey, video.videoUrl]
   );
 
   const pollVideoStatus = useCallback(
