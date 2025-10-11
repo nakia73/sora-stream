@@ -75,15 +75,31 @@ export function useVideoGeneration() {
         formData.append('size', options.size);
         formData.append('seconds', options.seconds);
 
+        console.log('🔍 リクエスト準備:', {
+          model: options.model,
+          promptLength: prompt.length,
+          size: options.size,
+          seconds: options.seconds,
+          hasReferenceImage: !!referenceImage,
+          referenceImageLength: referenceImage?.length,
+        });
+
         // 参照画像がある場合は追加
         if (referenceImage) {
           try {
+            console.log('🖼️ 参照画像の変換を開始...');
+            
             // Base64文字列からBlobに変換
             // data:image/png;base64,... の形式から base64 部分を抽出
             const base64Data = referenceImage.split(',')[1];
             if (!base64Data) {
               throw new Error('Base64データの抽出に失敗しました');
             }
+            
+            console.log('📊 Base64データ抽出成功:', {
+              base64Length: base64Data.length,
+              estimatedSize: Math.round(base64Data.length * 0.75) + ' bytes',
+            });
             
             // Base64をバイナリデコード
             const binaryString = atob(base64Data);
@@ -92,6 +108,8 @@ export function useVideoGeneration() {
               bytes[i] = binaryString.charCodeAt(i);
             }
             
+            console.log('✅ バイナリ変換完了:', bytes.length + ' bytes');
+            
             // Blobを作成
             const blob = new Blob([bytes], { type: 'image/png' });
             const file = new File([blob], 'reference.png', { type: 'image/png' });
@@ -99,25 +117,37 @@ export function useVideoGeneration() {
             // FormDataに追加
             formData.append('input_reference', file);
             
-            console.log('📷 参照画像を追加しました:', {
-              size: blob.size,
-              type: blob.type,
+            console.log('📷 参照画像をFormDataに追加しました:', {
+              fileName: file.name,
+              fileSize: file.size,
+              fileType: file.type,
             });
+            
+            // FormDataの内容を確認（デバッグ用）
+            const formDataEntries: string[] = [];
+            formData.forEach((value, key) => {
+              if (value instanceof File) {
+                formDataEntries.push(`${key}: File(name=${value.name}, size=${value.size}, type=${value.type})`);
+              } else {
+                formDataEntries.push(`${key}: ${value}`);
+              }
+            });
+            console.log('📦 FormData内容:', formDataEntries);
+            
           } catch (error) {
-            console.error('参照画像の変換エラー:', error);
-            toast.error('参照画像の処理に失敗しました');
+            console.error('❌ 参照画像の変換エラー:', error);
+            const errorMsg = error instanceof Error ? error.message : '参照画像の処理に失敗しました';
+            toast.error(`参照画像エラー: ${errorMsg}`);
             throw error;
           }
+        } else {
+          console.log('ℹ️ 参照画像なし - テキストのみで生成');
         }
 
-        console.log('🎬 動画生成リクエスト送信:', {
-          model: options.model,
-          prompt: prompt.substring(0, 50) + '...',
-          size: options.size,
-          seconds: options.seconds,
-          hasImage: !!referenceImage,
-        });
+        console.log('🎬 動画生成リクエスト送信準備完了');
 
+        console.log('🚀 APIリクエスト送信中...');
+        
         // 動画生成リクエスト（multipart/form-data形式）
         const response = await fetch('https://api.openai.com/v1/videos', {
           method: 'POST',
@@ -183,8 +213,14 @@ export function useVideoGeneration() {
         const data = await response.json();
         const videoId = data.id;
         
-        // 生成開始レスポンスをログ出力
-        console.log('🎬 動画生成開始 - レスポンス:', JSON.stringify(data, null, 2));
+        // 生成開始レスポンスをログ出力（参照画像が正しく認識されているか確認）
+        console.log('🎬 動画生成開始 - APIレスポンス:', JSON.stringify(data, null, 2));
+        
+        if (referenceImage && !data.input_reference) {
+          console.warn('⚠️ 参照画像を送信したがAPIレスポンスに含まれていません');
+        } else if (referenceImage) {
+          console.log('✅ 参照画像がAPIに正しく受理されました');
+        }
 
         setVideo((prev) => ({
           ...prev,

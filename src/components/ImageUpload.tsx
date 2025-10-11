@@ -78,15 +78,30 @@ export function ImageUpload({ onImageSelect, currentImage, disabled, targetSize 
     }
 
     try {
+      console.log('🔄 画像アップロード処理開始:', {
+        fileName: file.name,
+        fileSize: file.size,
+        fileType: file.type,
+        targetSize,
+      });
+      
       // 画像を指定サイズにリサイズ
       const resizedBase64 = await resizeImage(file);
+      
+      console.log('✅ 画像リサイズ完了:', {
+        base64Length: resizedBase64.length,
+        base64Preview: resizedBase64.substring(0, 50) + '...',
+      });
+      
       setPreviewUrl(resizedBase64);
       onImageSelect(resizedBase64);
+      
+      console.log('✅ 参照画像を親コンポーネントに渡しました');
       toast.success(`参照画像を設定しました (${targetSize}にリサイズ済み)`);
     } catch (error) {
-      console.error('画像処理エラー:', error);
+      console.error('❌ 画像処理エラー:', error);
       const errorMsg = error instanceof Error ? error.message : '画像の処理に失敗しました';
-      toast.error(errorMsg);
+      toast.error(`画像処理エラー: ${errorMsg}`);
     }
   };
 
