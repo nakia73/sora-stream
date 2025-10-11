@@ -7,11 +7,59 @@ interface ImageUploadProps {
   onImageSelect: (imageData: string | null) => void;
   currentImage: string | null;
   disabled?: boolean;
+  targetSize?: string; // 例: "1280x720"
 }
 
-export function ImageUpload({ onImageSelect, currentImage, disabled }: ImageUploadProps) {
+export function ImageUpload({ onImageSelect, currentImage, disabled, targetSize = '1280x720' }: ImageUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(currentImage);
+
+  // 目標サイズをパース
+  const [targetWidth, targetHeight] = targetSize.split('x').map(Number);
+
+  const resizeImage = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new Image();
+        img.onload = () => {
+          // Canvasで指定サイズにリサイズ
+          const canvas = document.createElement('canvas');
+          canvas.width = targetWidth;
+          canvas.height = targetHeight;
+          const ctx = canvas.getContext('2d');
+          
+          if (!ctx) {
+            reject(new Error('Canvas context not available'));
+            return;
+          }
+
+          // 画像を中央配置して描画（アスペクト比を維持してフィット）
+          const scale = Math.max(targetWidth / img.width, targetHeight / img.height);
+          const scaledWidth = img.width * scale;
+          const scaledHeight = img.height * scale;
+          const x = (targetWidth - scaledWidth) / 2;
+          const y = (targetHeight - scaledHeight) / 2;
+
+          // 背景を黒で塗りつぶし
+          ctx.fillStyle = '#000000';
+          ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+          // 画像を描画
+          ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
+
+          // Base64に変換（PNG形式）
+          const resizedBase64 = canvas.toDataURL('image/png', 1.0);
+          console.log(`📷 画像リサイズ完了: ${img.width}x${img.height} → ${targetWidth}x${targetHeight}`);
+          resolve(resizedBase64);
+        };
+        img.onerror = () => reject(new Error('画像の読み込みに失敗しました'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('ファイルの読み込みに失敗しました'));
+      reader.readAsDataURL(file);
+    });
+  };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -30,21 +78,15 @@ export function ImageUpload({ onImageSelect, currentImage, disabled }: ImageUplo
     }
 
     try {
-      // Base64に変換
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64Data = event.target?.result as string;
-        setPreviewUrl(base64Data);
-        onImageSelect(base64Data);
-        toast.success('参照画像を設定しました');
-      };
-      reader.onerror = () => {
-        toast.error('画像の読み込みに失敗しました');
-      };
-      reader.readAsDataURL(file);
+      // 画像を指定サイズにリサイズ
+      const resizedBase64 = await resizeImage(file);
+      setPreviewUrl(resizedBase64);
+      onImageSelect(resizedBase64);
+      toast.success(`参照画像を設定しました (${targetSize}にリサイズ済み)`);
     } catch (error) {
-      console.error('画像読み込みエラー:', error);
-      toast.error('画像の処理に失敗しました');
+      console.error('画像処理エラー:', error);
+      const errorMsg = error instanceof Error ? error.message : '画像の処理に失敗しました';
+      toast.error(errorMsg);
     }
   };
 
@@ -112,7 +154,7 @@ export function ImageUpload({ onImageSelect, currentImage, disabled }: ImageUplo
       )}
       
       <p className="text-xs text-muted-foreground">
-        参照画像を設定すると、その画像の雰囲気やスタイルを反映した動画が生成されます
+        参照画像は自動的に{targetSize}にリサイズされます。画像の雰囲気やスタイルを反映した動画が生成されます。
       </p>
     </div>
   );

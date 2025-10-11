@@ -113,6 +113,7 @@ const Index = () => {
             onImageSelect={setReferenceImage}
             currentImage={video.referenceImage}
             disabled={isGenerating}
+            targetSize={video.options.size}
           />
 
           {/* Generation Options */}
