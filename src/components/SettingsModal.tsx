@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,13 @@ export function SettingsModal({
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
   const [testMessage, setTestMessage] = useState('');
   const [apiResponse, setApiResponse] = useState<any>(null);
+
+  // モーダルが開かれるたびに保存済みAPIキーを表示
+  useEffect(() => {
+    if (open && currentApiKey) {
+      setApiKey(currentApiKey);
+    }
+  }, [open, currentApiKey]);
 
   const handleSave = () => {
     if (apiKey.trim()) {
