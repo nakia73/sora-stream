@@ -78,11 +78,31 @@ export function useVideoGeneration() {
         // 参照画像がある場合は追加
         if (referenceImage) {
           try {
-            // Base64をBlobに変換
-            const base64Response = await fetch(referenceImage);
-            const blob = await base64Response.blob();
-            formData.append('input_reference', blob, 'reference.png');
-            console.log('📷 参照画像を追加しました');
+            // Base64文字列からBlobに変換
+            // data:image/png;base64,... の形式から base64 部分を抽出
+            const base64Data = referenceImage.split(',')[1];
+            if (!base64Data) {
+              throw new Error('Base64データの抽出に失敗しました');
+            }
+            
+            // Base64をバイナリデコード
+            const binaryString = atob(base64Data);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
+            }
+            
+            // Blobを作成
+            const blob = new Blob([bytes], { type: 'image/png' });
+            const file = new File([blob], 'reference.png', { type: 'image/png' });
+            
+            // FormDataに追加
+            formData.append('input_reference', file);
+            
+            console.log('📷 参照画像を追加しました:', {
+              size: blob.size,
+              type: blob.type,
+            });
           } catch (error) {
             console.error('参照画像の変換エラー:', error);
             toast.error('参照画像の処理に失敗しました');
