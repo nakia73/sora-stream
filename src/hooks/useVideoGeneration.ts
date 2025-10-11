@@ -96,6 +96,9 @@ export function useVideoGeneration() {
 
         const data = await response.json();
         const videoId = data.id;
+        
+        // 生成開始レスポンスをログ出力
+        console.log('🎬 動画生成開始 - レスポンス:', JSON.stringify(data, null, 2));
 
         setVideo((prev) => ({
           ...prev,
@@ -144,6 +147,9 @@ export function useVideoGeneration() {
           }
 
           const data = await response.json();
+          
+          // APIレスポンスの詳細をログ出力
+          console.log('📹 動画ステータスレスポンス:', JSON.stringify(data, null, 2));
 
           setVideo((prev) => ({
             ...prev,
@@ -152,14 +158,35 @@ export function useVideoGeneration() {
           }));
 
           if (data.status === 'completed') {
+            console.log('✅ 動画生成完了 - レスポンス詳細:', data);
+            
+            // video_urlの存在確認
+            if (!data.video_url) {
+              console.error('❌ エラー: video_urlがレスポンスに含まれていません');
+              console.error('レスポンス内容:', JSON.stringify(data, null, 2));
+              toast.error('動画URLが取得できませんでした。APIレスポンスを確認してください。', {
+                duration: 10000,
+              });
+              setVideo((prev) => ({
+                ...prev,
+                status: 'failed',
+              }));
+              return;
+            }
+            
             setVideo((prev) => ({
               ...prev,
               videoUrl: data.video_url,
             }));
             toast.success('動画生成が完了しました！');
           } else if (data.status === 'failed') {
-            toast.error('動画生成に失敗しました');
+            console.error('❌ 動画生成失敗:', data.error || 'エラー詳細なし');
+            const errorMsg = data.error?.message || '動画生成に失敗しました';
+            toast.error(`動画生成失敗: ${errorMsg}`, {
+              duration: 10000,
+            });
           } else if (data.status === 'queued' || data.status === 'in_progress') {
+            console.log(`⏳ ポーリング継続 - ステータス: ${data.status}, 進捗: ${data.progress}%`);
             // 継続してポーリング
             setTimeout(poll, POLLING_INTERVAL);
           }
