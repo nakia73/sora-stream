@@ -9,7 +9,8 @@ import {
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
-import { Key } from 'lucide-react';
+import { Key, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface SettingsModalProps {
   open: boolean;
@@ -25,11 +26,74 @@ export function SettingsModal({
   onSaveApiKey,
 }: SettingsModalProps) {
   const [apiKey, setApiKey] = useState(currentApiKey || '');
+  const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'error'>('idle');
+  const [testMessage, setTestMessage] = useState('');
 
   const handleSave = () => {
     if (apiKey.trim()) {
       onSaveApiKey(apiKey.trim());
       onOpenChange(false);
+    }
+  };
+
+  const handleTestApiKey = async () => {
+    if (!apiKey.trim()) {
+      toast.error('APIキーを入力してください');
+      return;
+    }
+
+    setTestStatus('testing');
+    setTestMessage('');
+
+    try {
+      // OpenAI APIのモデル一覧エンドポイントでテスト（軽量なリクエスト）
+      const response = await fetch('https://api.openai.com/v1/models', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${apiKey.trim()}`,
+        },
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        const errorMessage = error.error?.message || 'APIキーの検証に失敗しました';
+        
+        let detailedMessage = errorMessage;
+        if (response.status === 401) {
+          detailedMessage = 'APIキーが無効です。正しいAPIキーを入力してください。';
+        } else if (response.status === 403) {
+          detailedMessage = 'アクセスが拒否されました。組織の認証状態を確認してください。';
+        } else if (response.status === 429) {
+          detailedMessage = 'レート制限に達しました。しばらく待ってから再度お試しください。';
+        }
+        
+        setTestStatus('error');
+        setTestMessage(detailedMessage);
+        toast.error(detailedMessage);
+        return;
+      }
+
+      const data = await response.json();
+      
+      // Sora2モデルが利用可能かチェック
+      const hasSora2 = data.data?.some((model: any) => 
+        model.id === 'sora-2' || model.id === 'sora-2-pro'
+      );
+
+      if (hasSora2) {
+        setTestStatus('success');
+        setTestMessage('✅ APIキーは有効です。Sora2モデルが利用可能です。');
+        toast.success('APIキーのテストに成功しました！');
+      } else {
+        setTestStatus('success');
+        setTestMessage('✅ APIキーは有効ですが、Sora2モデルへのアクセスが確認できませんでした。');
+        toast.warning('APIキーは有効ですが、Sora2モデルが見つかりません');
+      }
+    } catch (error) {
+      console.error('APIテストエラー:', error);
+      setTestStatus('error');
+      setTestMessage('ネットワークエラーが発生しました');
+      toast.error('APIテストに失敗しました');
     }
   };
 
@@ -71,6 +135,46 @@ export function SettingsModal({
               </a>{' '}
               で取得できます
             </p>
+          </div>
+
+          <div className="space-y-3">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={handleTestApiKey}
+              disabled={!apiKey.trim() || testStatus === 'testing'}
+              className="w-full"
+            >
+              {testStatus === 'testing' ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  テスト中...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-4 h-4 mr-2" />
+                  APIキーをテスト
+                </>
+              )}
+            </Button>
+
+            {testStatus === 'success' && (
+              <div className="rounded-lg bg-green-500/10 border border-green-500/20 p-3">
+                <div className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-green-600 dark:text-green-400">{testMessage}</p>
+                </div>
+              </div>
+            )}
+
+            {testStatus === 'error' && (
+              <div className="rounded-lg bg-destructive/10 border border-destructive/20 p-3">
+                <div className="flex items-start gap-2">
+                  <XCircle className="w-4 h-4 text-destructive mt-0.5 flex-shrink-0" />
+                  <p className="text-xs text-destructive">{testMessage}</p>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="rounded-lg bg-muted/50 p-4 space-y-2">
