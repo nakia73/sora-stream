@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 const Index = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
-  const { apiKey, video, saveApiKey, generateVideo, downloadVideo, resetVideo } =
+  const { apiKey, video, saveApiKey, generateVideo, downloadVideo, resetVideo, updateOptions } =
     useVideoGeneration();
 
   const handleGenerate = () => {
@@ -112,13 +112,7 @@ const Index = () => {
             <label className="text-sm font-medium">生成オプション</label>
             <GenerationOptions
               options={video.options}
-              onChange={(options) => {
-                // Update options only if not generating
-                if (!isGenerating) {
-                  // This would require updating the hook to expose setOptions
-                  // For now, we'll keep options static during generation
-                }
-              }}
+              onChange={updateOptions}
               disabled={isGenerating}
             />
           </div>

@@ -246,6 +246,13 @@ export function useVideoGeneration() {
     }
   }, [video.videoUrl]);
 
+  const updateOptions = useCallback((options: GenerationOptions) => {
+    setVideo((prev) => ({
+      ...prev,
+      options,
+    }));
+  }, []);
+
   const resetVideo = useCallback(() => {
     // 既存のObjectURLをクリーンアップ
     if (video.videoUrl && video.videoUrl.startsWith('blob:')) {
@@ -273,5 +280,6 @@ export function useVideoGeneration() {
     generateVideo,
     downloadVideo,
     resetVideo,
+    updateOptions,
   };
 }
