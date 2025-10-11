@@ -14,6 +14,7 @@ export interface VideoState {
   videoUrl: string | null;
   prompt: string;
   options: GenerationOptions;
+  referenceImage: string | null; // Base64 image data
 }
 
 const POLLING_INTERVAL = 10000; // 10秒
@@ -34,6 +35,7 @@ export function useVideoGeneration() {
       seconds: '4',
       model: 'sora-2',
     },
+    referenceImage: null,
   });
 
   const saveApiKey = useCallback((key: string) => {
@@ -43,7 +45,7 @@ export function useVideoGeneration() {
   }, []);
 
   const generateVideo = useCallback(
-    async (prompt: string, options: GenerationOptions) => {
+    async (prompt: string, options: GenerationOptions, referenceImage?: string | null) => {
       if (!apiKey) {
         toast.error('APIキーが設定されていません');
         return;
@@ -63,7 +65,21 @@ export function useVideoGeneration() {
           videoUrl: null,
           prompt,
           options,
+          referenceImage: referenceImage || null,
         });
+
+        // リクエストボディを構築
+        const requestBody: any = {
+          model: options.model,
+          prompt: prompt,
+          size: options.size,
+          seconds: options.seconds,
+        };
+
+        // 参照画像がある場合は追加
+        if (referenceImage) {
+          requestBody.image = referenceImage;
+        }
 
         // 動画生成リクエスト
         const response = await fetch('https://api.openai.com/v1/videos', {
@@ -72,12 +88,7 @@ export function useVideoGeneration() {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${apiKey}`,
           },
-          body: JSON.stringify({
-            model: options.model,
-            prompt: prompt,
-            size: options.size,
-            seconds: options.seconds,
-          }),
+          body: JSON.stringify(requestBody),
         });
 
         if (!response.ok) {
@@ -253,6 +264,13 @@ export function useVideoGeneration() {
     }));
   }, []);
 
+  const setReferenceImage = useCallback((imageData: string | null) => {
+    setVideo((prev) => ({
+      ...prev,
+      referenceImage: imageData,
+    }));
+  }, []);
+
   const resetVideo = useCallback(() => {
     // 既存のObjectURLをクリーンアップ
     if (video.videoUrl && video.videoUrl.startsWith('blob:')) {
@@ -270,6 +288,7 @@ export function useVideoGeneration() {
         seconds: '4',
         model: 'sora-2',
       },
+      referenceImage: null,
     });
   }, [video.videoUrl]);
 
@@ -281,5 +300,6 @@ export function useVideoGeneration() {
     downloadVideo,
     resetVideo,
     updateOptions,
+    setReferenceImage,
   };
 }

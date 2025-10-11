@@ -7,13 +7,14 @@ import { Card } from '@/components/ui/card';
 import { SettingsModal } from '@/components/SettingsModal';
 import { VideoPlayer } from '@/components/VideoPlayer';
 import { GenerationOptions } from '@/components/GenerationOptions';
+import { ImageUpload } from '@/components/ImageUpload';
 import { useVideoGeneration } from '@/hooks/useVideoGeneration';
 import { toast } from 'sonner';
 
 const Index = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
-  const { apiKey, video, saveApiKey, generateVideo, downloadVideo, resetVideo, updateOptions } =
+  const { apiKey, video, saveApiKey, generateVideo, downloadVideo, resetVideo, updateOptions, setReferenceImage } =
     useVideoGeneration();
 
   const handleGenerate = () => {
@@ -33,7 +34,7 @@ const Index = () => {
       return;
     }
 
-    generateVideo(prompt, video.options);
+    generateVideo(prompt, video.options, video.referenceImage);
   };
 
   const handleNewGeneration = () => {
@@ -106,6 +107,13 @@ const Index = () => {
               <span>{prompt.length}/500</span>
             </div>
           </div>
+
+          {/* Image Upload */}
+          <ImageUpload
+            onImageSelect={setReferenceImage}
+            currentImage={video.referenceImage}
+            disabled={isGenerating}
+          />
 
           {/* Generation Options */}
           <div className="space-y-2">
