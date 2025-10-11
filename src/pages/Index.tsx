@@ -150,8 +150,19 @@ const Index = () => {
                 </div>
               </div>
               {video.status === 'failed' && (
-                <div className="text-sm text-destructive">
-                  動画生成に失敗しました。もう一度お試しください。
+                <div className="p-4 rounded-lg bg-destructive/10 border border-destructive/20">
+                  <div className="flex items-start gap-3">
+                    <div className="text-destructive mt-0.5">⚠️</div>
+                    <div className="flex-1 space-y-2">
+                      <div className="text-sm font-medium text-destructive">
+                        動画生成に失敗しました
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        エラーの詳細はトースト通知をご確認ください。
+                        問題が解決しない場合は、APIキーや課金設定を確認してください。
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

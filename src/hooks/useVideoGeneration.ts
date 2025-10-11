@@ -76,7 +76,22 @@ export function useVideoGeneration() {
 
         if (!response.ok) {
           const error = await response.json();
-          throw new Error(error.error?.message || '動画生成リクエストに失敗しました');
+          const errorMessage = error.error?.message || '動画生成リクエストに失敗しました';
+          const errorCode = error.error?.code || error.error?.type || 'unknown';
+          
+          // エラータイプに応じた詳細メッセージ
+          let detailedMessage = errorMessage;
+          if (errorCode === 'billing_hard_limit_reached') {
+            detailedMessage = '❌ OpenAIの課金制限に達しています。\n\nOpenAIダッシュボードで課金設定を確認してください:\nhttps://platform.openai.com/settings/organization/billing';
+          } else if (response.status === 403 && errorMessage.includes('organization must be verified')) {
+            detailedMessage = '❌ OpenAI組織の認証が必要です。\n\n以下のURLから組織認証を行ってください:\nhttps://platform.openai.com/settings/organization/general\n\n認証後、反映まで最大15分かかる場合があります。';
+          } else if (response.status === 401) {
+            detailedMessage = '❌ APIキーが無効です。\n\n設定画面から正しいAPIキーを入力してください。';
+          } else if (response.status === 429) {
+            detailedMessage = '❌ レート制限に達しました。\n\nしばらく待ってから再度お試しください。';
+          }
+          
+          throw new Error(detailedMessage);
         }
 
         const data = await response.json();
@@ -94,7 +109,17 @@ export function useVideoGeneration() {
         pollVideoStatus(videoId);
       } catch (error) {
         console.error('動画生成エラー:', error);
-        toast.error(error instanceof Error ? error.message : '動画生成に失敗しました');
+        const errorMessage = error instanceof Error ? error.message : '動画生成に失敗しました';
+        
+        // 複数行のエラーメッセージを表示
+        toast.error(errorMessage, {
+          duration: 10000, // 10秒間表示
+          style: {
+            whiteSpace: 'pre-line',
+            maxWidth: '500px',
+          },
+        });
+        
         setVideo((prev) => ({
           ...prev,
           status: 'failed',
