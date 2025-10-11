@@ -158,27 +158,41 @@ export function useVideoGeneration() {
           }));
 
           if (data.status === 'completed') {
-            console.log('✅ 動画生成完了 - レスポンス詳細:', data);
+            console.log('✅ 動画生成完了 - 動画URLを取得します');
             
-            // video_urlの存在確認
-            if (!data.video_url) {
-              console.error('❌ エラー: video_urlがレスポンスに含まれていません');
-              console.error('レスポンス内容:', JSON.stringify(data, null, 2));
-              toast.error('動画URLが取得できませんでした。APIレスポンスを確認してください。', {
+            try {
+              // OpenAI Sora API では /content エンドポイントで動画を取得
+              const contentResponse = await fetch(`https://api.openai.com/v1/videos/${videoId}/content`, {
+                headers: {
+                  Authorization: `Bearer ${apiKey}`,
+                },
+              });
+
+              if (!contentResponse.ok) {
+                throw new Error(`動画コンテンツ取得失敗: ${contentResponse.status}`);
+              }
+
+              // Blobとして動画データを取得
+              const blob = await contentResponse.blob();
+              const videoUrl = URL.createObjectURL(blob);
+              
+              console.log('✅ 動画URL生成成功:', videoUrl.substring(0, 50) + '...');
+              
+              setVideo((prev) => ({
+                ...prev,
+                videoUrl: videoUrl,
+              }));
+              toast.success('動画生成が完了しました！');
+            } catch (error) {
+              console.error('❌ 動画コンテンツ取得エラー:', error);
+              toast.error('動画の取得に失敗しました: ' + (error instanceof Error ? error.message : '不明なエラー'), {
                 duration: 10000,
               });
               setVideo((prev) => ({
                 ...prev,
                 status: 'failed',
               }));
-              return;
             }
-            
-            setVideo((prev) => ({
-              ...prev,
-              videoUrl: data.video_url,
-            }));
-            toast.success('動画生成が完了しました！');
           } else if (data.status === 'failed') {
             console.error('❌ 動画生成失敗:', data.error || 'エラー詳細なし');
             const errorMsg = data.error?.message || '動画生成に失敗しました';
@@ -212,16 +226,13 @@ export function useVideoGeneration() {
     }
 
     try {
-      const response = await fetch(video.videoUrl);
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
+      // ObjectURLから直接ダウンロード
       const a = document.createElement('a');
-      a.href = url;
+      a.href = video.videoUrl;
       a.download = `sora-video-${Date.now()}.mp4`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
       toast.success('動画をダウンロードしました');
     } catch (error) {
       console.error('ダウンロードエラー:', error);
@@ -230,6 +241,11 @@ export function useVideoGeneration() {
   }, [video.videoUrl]);
 
   const resetVideo = useCallback(() => {
+    // 既存のObjectURLをクリーンアップ
+    if (video.videoUrl && video.videoUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(video.videoUrl);
+    }
+    
     setVideo({
       id: null,
       status: 'idle',
@@ -242,7 +258,7 @@ export function useVideoGeneration() {
         model: 'sora-2',
       },
     });
-  }, []);
+  }, [video.videoUrl]);
 
   return {
     apiKey,
