@@ -124,17 +124,15 @@ const Index = () => {
           </div>
 
           {/* Generate Button */}
-          {!isCompleted && (
-            <Button
-              onClick={handleGenerate}
-              disabled={isGenerating || !prompt.trim()}
-              className="w-full gradient-primary gap-2 text-lg py-6"
-              size="lg"
-            >
-              <Film className="w-5 h-5" />
-              {isGenerating ? '生成中...' : '動画を生成'}
-            </Button>
-          )}
+          <Button
+            onClick={isCompleted ? handleNewGeneration : handleGenerate}
+            disabled={isGenerating || (!isCompleted && !prompt.trim())}
+            className="w-full gradient-primary gap-2 text-lg py-6"
+            size="lg"
+          >
+            <Film className="w-5 h-5" />
+            {isGenerating ? '生成中...' : isCompleted ? '新しい動画を生成' : '動画を生成'}
+          </Button>
 
           {/* Status Display */}
           {video.status !== 'idle' && !isCompleted && (
@@ -179,13 +177,6 @@ const Index = () => {
                 <span className="text-xs text-muted-foreground">✅ 生成完了</span>
               </div>
               <VideoPlayer videoUrl={video.videoUrl} onDownload={downloadVideo} />
-              <Button
-                onClick={handleNewGeneration}
-                variant="outline"
-                className="w-full border-border"
-              >
-                新しい動画を生成
-              </Button>
             </div>
           )}
         </Card>
