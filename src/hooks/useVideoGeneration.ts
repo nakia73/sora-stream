@@ -46,6 +46,14 @@ export function useVideoGeneration() {
 
   const generateVideo = useCallback(
     async (prompt: string, options: GenerationOptions, referenceImage?: string | null) => {
+      console.log('🎬 generateVideo called with:', {
+        promptLength: prompt.length,
+        hasReferenceImage: !!referenceImage,
+        referenceImageLength: referenceImage?.length,
+        referenceImageType: typeof referenceImage,
+        referenceImagePreview: referenceImage ? referenceImage.substring(0, 50) + '...' : null,
+      });
+      
       if (!apiKey) {
         toast.error('APIキーが設定されていません');
         return;
@@ -402,6 +410,12 @@ export function useVideoGeneration() {
   }, []);
 
   const setReferenceImage = useCallback((imageData: string | null) => {
+    console.log('🖼️ setReferenceImage called:', {
+      hasImage: !!imageData,
+      imageLength: imageData?.length,
+      imagePreview: imageData ? imageData.substring(0, 50) + '...' : null,
+    });
+    
     setVideo((prev) => ({
       ...prev,
       referenceImage: imageData,
