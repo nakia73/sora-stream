@@ -381,11 +381,24 @@ export function useVideoGeneration() {
     }
   }, [video.videoUrl]);
 
-  const updateOptions = useCallback((options: GenerationOptions) => {
-    setVideo((prev) => ({
-      ...prev,
-      options,
-    }));
+  const updateOptions = useCallback((options: GenerationOptions, shouldClearImage = true) => {
+    setVideo((prev) => {
+      // 解像度が変更された場合、参照画像をクリア（再アップロードが必要）
+      const sizeChanged = prev.options.size !== options.size;
+      
+      if (sizeChanged && shouldClearImage && prev.referenceImage) {
+        toast.warning('解像度が変更されました。参照画像を再度アップロードしてください。', {
+          duration: 5000,
+        });
+      }
+      
+      return {
+        ...prev,
+        options,
+        // 解像度変更時は画像をクリア
+        referenceImage: sizeChanged && shouldClearImage ? null : prev.referenceImage,
+      };
+    });
   }, []);
 
   const setReferenceImage = useCallback((imageData: string | null) => {
