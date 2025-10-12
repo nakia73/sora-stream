@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { toast } from 'sonner';
 
 export interface GenerationOptions {
@@ -38,6 +38,33 @@ export function useVideoGeneration() {
     referenceImage: null,
   });
 
+  // ポーリングタイムアウトの参照を保持（クリーンアップ用）
+  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // 現在の動画URLを保持（クリーンアップ用）
+  const currentVideoUrlRef = useRef<string | null>(null);
+
+  // コンポーネントアンマウント時のクリーンアップ
+  useEffect(() => {
+    console.log('🎯 useVideoGeneration: マウントされました');
+    return () => {
+      console.log('🗑️ useVideoGeneration: クリーンアップ開始');
+      
+      // ポーリングを停止
+      if (pollingTimeoutRef.current) {
+        clearTimeout(pollingTimeoutRef.current);
+        pollingTimeoutRef.current = null;
+        console.log('⏹️ ポーリングタイムアウトをクリア');
+      }
+      
+      // Blob URLをクリーンアップ
+      if (currentVideoUrlRef.current && currentVideoUrlRef.current.startsWith('blob:')) {
+        URL.revokeObjectURL(currentVideoUrlRef.current);
+        console.log('🗑️ Blob URLをクリーンアップ:', currentVideoUrlRef.current);
+        currentVideoUrlRef.current = null;
+      }
+    };
+  }, []);
+
   const saveApiKey = useCallback((key: string) => {
     localStorage.setItem('openai_api_key', key);
     setApiKey(key);
@@ -52,18 +79,29 @@ export function useVideoGeneration() {
         referenceImageLength: referenceImage?.length,
         referenceImageType: typeof referenceImage,
         referenceImagePreview: referenceImage ? referenceImage.substring(0, 50) + '...' : null,
+        currentVideoUrl: currentVideoUrlRef.current,
+        pollingActive: !!pollingTimeoutRef.current,
       });
       
       if (!apiKey) {
         toast.error('APIキーが設定されていません');
+        console.error('❌ APIキーが未設定');
         return;
       }
 
       try {
+        // 既存のポーリングを停止
+        if (pollingTimeoutRef.current) {
+          clearTimeout(pollingTimeoutRef.current);
+          pollingTimeoutRef.current = null;
+          console.log('⏹️ 既存のポーリングを停止しました');
+        }
+
         // 既存の動画URLをクリーンアップ（メモリリーク防止）
-        if (video.videoUrl && video.videoUrl.startsWith('blob:')) {
-          URL.revokeObjectURL(video.videoUrl);
-          console.log('🗑️ 古い動画URLをクリーンアップしました');
+        if (currentVideoUrlRef.current && currentVideoUrlRef.current.startsWith('blob:')) {
+          URL.revokeObjectURL(currentVideoUrlRef.current);
+          console.log('🗑️ 古い動画URLをクリーンアップしました:', currentVideoUrlRef.current);
+          currentVideoUrlRef.current = null;
         }
 
         setVideo({
@@ -263,7 +301,7 @@ export function useVideoGeneration() {
         }));
       }
     },
-    [apiKey, video.videoUrl]
+    [apiKey]
   );
 
   const pollVideoStatus = useCallback(
@@ -318,7 +356,14 @@ export function useVideoGeneration() {
               const blob = await contentResponse.blob();
               const videoUrl = URL.createObjectURL(blob);
               
-              console.log('✅ 動画URL生成成功:', videoUrl.substring(0, 50) + '...');
+              console.log('✅ 動画URL生成成功:', videoUrl.substring(0, 50) + '...', {
+                blobSize: blob.size,
+                blobType: blob.type,
+                previousUrl: currentVideoUrlRef.current,
+              });
+              
+              // 新しいURLを参照に保存
+              currentVideoUrlRef.current = videoUrl;
               
               setVideo((prev) => ({
                 ...prev,
@@ -343,12 +388,12 @@ export function useVideoGeneration() {
             });
           } else if (data.status === 'queued' || data.status === 'in_progress') {
             console.log(`⏳ ポーリング継続 - ステータス: ${data.status}, 進捗: ${data.progress}%`);
-            // 継続してポーリング
-            setTimeout(poll, POLLING_INTERVAL);
+            // 継続してポーリング（タイムアウトIDを保存）
+            pollingTimeoutRef.current = setTimeout(poll, POLLING_INTERVAL);
           } else {
             console.warn('⚠️ 未知のステータス:', data.status);
             // 未知のステータスでもポーリングを継続
-            setTimeout(poll, POLLING_INTERVAL);
+            pollingTimeoutRef.current = setTimeout(poll, POLLING_INTERVAL);
           }
         } catch (error) {
           console.error('❌ ステータス確認エラー:', error);
@@ -360,17 +405,33 @@ export function useVideoGeneration() {
             ...prev,
             status: 'failed',
           }));
+          
+          // エラー時はポーリングを停止
+          if (pollingTimeoutRef.current) {
+            clearTimeout(pollingTimeoutRef.current);
+            pollingTimeoutRef.current = null;
+            console.log('⏹️ エラーによりポーリングを停止');
+          }
         }
       };
 
+      // 初回ポーリング開始
+      console.log('🚀 ポーリング開始:', videoId);
       poll();
     },
     [apiKey]
   );
 
   const downloadVideo = useCallback(async () => {
+    console.log('💾 ダウンロード開始:', {
+      hasVideoUrl: !!video.videoUrl,
+      videoUrl: video.videoUrl,
+      currentUrlRef: currentVideoUrlRef.current,
+    });
+
     if (!video.videoUrl) {
       toast.error('ダウンロードする動画がありません');
+      console.error('❌ 動画URLが存在しません');
       return;
     }
 
@@ -382,10 +443,12 @@ export function useVideoGeneration() {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      console.log('✅ ダウンロード成功');
       toast.success('動画をダウンロードしました');
     } catch (error) {
-      console.error('ダウンロードエラー:', error);
-      toast.error('ダウンロードに失敗しました');
+      console.error('❌ ダウンロードエラー:', error);
+      const errorMsg = error instanceof Error ? error.message : '不明なエラー';
+      toast.error(`ダウンロードに失敗しました: ${errorMsg}`);
     }
   }, [video.videoUrl]);
 
@@ -423,9 +486,24 @@ export function useVideoGeneration() {
   }, []);
 
   const resetVideo = useCallback(() => {
+    console.log('🔄 resetVideo開始:', {
+      currentVideoUrl: video.videoUrl,
+      currentUrlRef: currentVideoUrlRef.current,
+      pollingActive: !!pollingTimeoutRef.current,
+    });
+
+    // ポーリングを停止
+    if (pollingTimeoutRef.current) {
+      clearTimeout(pollingTimeoutRef.current);
+      pollingTimeoutRef.current = null;
+      console.log('⏹️ ポーリングを停止しました');
+    }
+
     // 既存のObjectURLをクリーンアップ
-    if (video.videoUrl && video.videoUrl.startsWith('blob:')) {
-      URL.revokeObjectURL(video.videoUrl);
+    if (currentVideoUrlRef.current && currentVideoUrlRef.current.startsWith('blob:')) {
+      URL.revokeObjectURL(currentVideoUrlRef.current);
+      console.log('🗑️ Blob URLをクリーンアップ:', currentVideoUrlRef.current);
+      currentVideoUrlRef.current = null;
     }
     
     setVideo({
@@ -441,6 +519,8 @@ export function useVideoGeneration() {
       },
       referenceImage: null,
     });
+    
+    console.log('✅ リセット完了');
   }, [video.videoUrl]);
 
   return {
