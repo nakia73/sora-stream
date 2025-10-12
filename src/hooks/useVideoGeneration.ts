@@ -4,6 +4,8 @@ import { VideoState, GenerationOptions } from '@/types/video';
 import * as soraApi from '@/services/soraApi';
 
 const POLLING_INTERVAL = 10000; // 10秒
+const MAX_POLLING_TIME = 600000; // 10分（最大ポーリング時間）
+const STUCK_PROGRESS_TIMEOUT = 180000; // 3分（同じ進捗で停止とみなす時間）
 
 export type { GenerationOptions, VideoState };
 
@@ -35,6 +37,10 @@ export function useVideoGeneration() {
   const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   // 現在の動画URLを保持（クリーンアップ用）
   const currentVideoUrlRef = useRef<string | null>(null);
+  // ポーリング開始時刻を保持（タイムアウト検出用）
+  const pollingStartTimeRef = useRef<number | null>(null);
+  // 最後に進捗が更新された時刻と進捗値を保持（スタック検出用）
+  const lastProgressUpdateRef = useRef<{ time: number; progress: number } | null>(null);
 
   // コンポーネントアンマウント時のクリーンアップ
   useEffect(() => {
@@ -105,6 +111,10 @@ export function useVideoGeneration() {
       pollingTimeoutRef.current = null;
       console.log('⏹️ 既存のポーリングを停止しました');
     }
+
+    // タイムアウト関連の参照をクリア
+    pollingStartTimeRef.current = null;
+    lastProgressUpdateRef.current = null;
 
     // 既存の動画URLをクリーンアップ
     if (currentVideoUrlRef.current && currentVideoUrlRef.current.startsWith('blob:')) {
@@ -190,14 +200,61 @@ export function useVideoGeneration() {
     async (videoId: string) => {
       const poll = async () => {
         try {
+          const now = Date.now();
           console.log('🔍 ステータス確認:', videoId);
 
+          // タイムアウトチェック（最大ポーリング時間）
+          if (pollingStartTimeRef.current && now - pollingStartTimeRef.current > MAX_POLLING_TIME) {
+            console.error('⏱️ タイムアウト: 最大ポーリング時間を超過しました');
+            toast.error('動画生成がタイムアウトしました。\n\n長時間経過しても完了しませんでした。\n再度お試しください。', {
+              duration: 10000,
+              style: {
+                whiteSpace: 'pre-line',
+                maxWidth: '500px',
+              },
+            });
+            setVideo((prev) => ({ ...prev, status: 'failed' }));
+            cleanupResources();
+            return;
+          }
+
           const data = await soraApi.getVideoStatus(apiKey!, videoId);
+          const currentProgress = data.progress || 0;
+
+          // 進捗スタック検出（同じ進捗で3分以上停止）
+          if (lastProgressUpdateRef.current) {
+            const { time: lastTime, progress: lastProgress } = lastProgressUpdateRef.current;
+            
+            if (lastProgress === currentProgress && currentProgress > 0) {
+              const stuckDuration = now - lastTime;
+              
+              if (stuckDuration > STUCK_PROGRESS_TIMEOUT) {
+                console.error(`⚠️ 進捗スタック検出: ${currentProgress}% で ${Math.floor(stuckDuration / 1000)}秒停止`);
+                toast.error(`動画生成が ${currentProgress}% で停止しています。\n\n${Math.floor(stuckDuration / 60000)}分以上進捗がありません。\nOpenAI側で問題が発生している可能性があります。\n\n再度お試しいただくか、しばらく待ってから再実行してください。`, {
+                  duration: 15000,
+                  style: {
+                    whiteSpace: 'pre-line',
+                    maxWidth: '500px',
+                  },
+                });
+                setVideo((prev) => ({ ...prev, status: 'failed' }));
+                cleanupResources();
+                return;
+              }
+            } else if (lastProgress !== currentProgress) {
+              // 進捗が更新された場合
+              lastProgressUpdateRef.current = { time: now, progress: currentProgress };
+              console.log(`📈 進捗更新: ${lastProgress}% → ${currentProgress}%`);
+            }
+          } else {
+            // 初回
+            lastProgressUpdateRef.current = { time: now, progress: currentProgress };
+          }
 
           setVideo((prev) => ({
             ...prev,
             status: data.status as VideoState['status'],
-            progress: data.progress || 0,
+            progress: currentProgress,
           }));
 
           if (data.status === 'completed') {
@@ -268,9 +325,11 @@ export function useVideoGeneration() {
       };
 
       console.log('🚀 ポーリング開始:', videoId);
+      pollingStartTimeRef.current = Date.now();
+      lastProgressUpdateRef.current = null;
       poll();
     },
-    [apiKey]
+    [apiKey, cleanupResources]
   );
 
   const downloadVideo = useCallback(async () => {
