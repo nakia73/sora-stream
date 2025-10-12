@@ -484,14 +484,9 @@ export function ImageUpload({
         </div>
       )}
       
-      <div className="space-y-1">
-        <p className="text-xs text-muted-foreground">
-          参照画像を設定すると、画像の雰囲気やスタイルを反映した動画が生成されます。
-        </p>
-        <p className="text-xs text-amber-600 dark:text-amber-400">
-          💡 ヒント: 解像度を変更する前に画像をアップロードすると、自動的に最適なサイズにリサイズされます。
-        </p>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        参照画像を設定すると、画像の雰囲気やスタイルを反映した動画が生成されます。
+      </p>
     </div>
   );
 }
