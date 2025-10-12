@@ -24,7 +24,7 @@ export function GenerationOptions({ options, onChange, disabled }: GenerationOpt
           onValueChange={(value) =>
             onChange({
               ...options,
-              size: value as '1280x720' | '720x1280' | '720x720' | '1792x1024' | '1024x1792',
+              size: value as '1280x720' | '720x1280' | '1792x1024' | '1024x1792',
             })
           }
           disabled={disabled}
@@ -35,7 +35,6 @@ export function GenerationOptions({ options, onChange, disabled }: GenerationOpt
           <SelectContent>
             <SelectItem value="1280x720">1280x720 (横長・HD)</SelectItem>
             <SelectItem value="720x1280">720x1280 (縦長)</SelectItem>
-            <SelectItem value="720x720">720x720 (正方形)</SelectItem>
             <SelectItem value="1792x1024">1792x1024 (横長・高解像度) ※Pro</SelectItem>
             <SelectItem value="1024x1792">1024x1792 (縦長・高解像度) ※Pro</SelectItem>
           </SelectContent>

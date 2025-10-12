@@ -2,7 +2,7 @@ import { useState, useCallback } from 'react';
 import { toast } from 'sonner';
 
 export interface GenerationOptions {
-  size: '1280x720' | '720x1280' | '720x720' | '1792x1024' | '1024x1792';
+  size: '1280x720' | '720x1280' | '1792x1024' | '1024x1792';
   seconds: '4' | '8' | '12';
   model: 'sora-2' | 'sora-2-pro';
 }
@@ -82,18 +82,22 @@ export function useVideoGeneration() {
           seconds: options.seconds,
           hasReferenceImage: !!referenceImage,
           referenceImageLength: referenceImage?.length,
+          referenceImagePreview: referenceImage ? referenceImage.substring(0, 50) + '...' : null,
         });
 
         // 参照画像がある場合は追加
-        if (referenceImage) {
+        if (referenceImage && referenceImage.trim() !== '') {
           try {
             console.log('🖼️ 参照画像の変換を開始...');
+            console.log('📊 referenceImage type:', typeof referenceImage);
+            console.log('📊 referenceImage length:', referenceImage.length);
+            console.log('📊 referenceImage preview:', referenceImage.substring(0, 100));
             
             // Base64文字列からBlobに変換
             // data:image/png;base64,... の形式から base64 部分を抽出
             const base64Data = referenceImage.split(',')[1];
-            if (!base64Data) {
-              throw new Error('Base64データの抽出に失敗しました');
+            if (!base64Data || base64Data.trim() === '') {
+              throw new Error('Base64データの抽出に失敗しました - データが空です');
             }
             
             console.log('📊 Base64データ抽出成功:', {
