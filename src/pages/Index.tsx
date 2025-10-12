@@ -10,12 +10,26 @@ import { GenerationOptions } from '@/components/GenerationOptions';
 import { ImageUpload } from '@/components/ImageUpload';
 import { useVideoGeneration } from '@/hooks/useVideoGeneration';
 import { toast } from 'sonner';
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 const Index = () => {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [prompt, setPrompt] = useState('');
+  const [showApiKeyAlert, setShowApiKeyAlert] = useState(false);
   const { apiKey, video, saveApiKey, generateVideo, downloadVideo, resetVideo, updateOptions, setReferenceImage } =
     useVideoGeneration();
+
+  const handlePromptFocus = () => {
+    if (!apiKey) {
+      setShowApiKeyAlert(true);
+    }
+  };
 
   const handleGenerate = () => {
     console.log('🎯 handleGenerate called:', {
@@ -114,6 +128,7 @@ const Index = () => {
               placeholder="生成したい動画の内容を詳しく説明してください..."
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
+              onFocus={handlePromptFocus}
               disabled={isGenerating}
               rows={4}
               className="bg-muted border-border resize-none"
@@ -226,6 +241,43 @@ const Index = () => {
         currentApiKey={apiKey}
         onSaveApiKey={saveApiKey}
       />
+
+      <AlertDialog open={showApiKeyAlert} onOpenChange={setShowApiKeyAlert}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <Settings className="w-5 h-5 text-primary" />
+              APIキーの設定が必要です
+            </AlertDialogTitle>
+            <AlertDialogDescription className="space-y-3 pt-2">
+              <p>
+                動画を生成するには、OpenAI API キーの設定が必要です。
+              </p>
+              <p className="text-sm font-medium text-foreground">
+                右上の設定ボタン（⚙️）から API キーを入力してください。
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setShowApiKeyAlert(false)}
+            >
+              閉じる
+            </Button>
+            <Button
+              onClick={() => {
+                setShowApiKeyAlert(false);
+                setSettingsOpen(true);
+              }}
+              className="gap-2"
+            >
+              <Settings className="w-4 h-4" />
+              設定を開く
+            </Button>
+          </div>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
