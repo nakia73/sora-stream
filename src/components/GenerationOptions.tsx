@@ -6,7 +6,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { GenerationOptions as Options } from '@/hooks/useVideoGeneration';
+import { GenerationOptions as Options } from '@/types/video';
 
 interface GenerationOptionsProps {
   options: Options;
