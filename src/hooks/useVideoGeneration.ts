@@ -71,10 +71,11 @@ export function useVideoGeneration() {
   }, []);
 
   const setReferenceImage = useCallback((imageData: string | null) => {
-    console.log('🖼️ setReferenceImage called:', {
+    console.log('🖼️ useVideoGeneration.setReferenceImage called:', {
       hasImage: !!imageData,
       imageLength: imageData?.length,
-      imagePreview: imageData ? imageData.substring(0, 50) + '...' : null,
+      imagePreview: imageData ? imageData.substring(0, 80) + '...' : null,
+      timestamp: new Date().toISOString(),
     });
 
     setVideo((prev) => {
@@ -82,10 +83,15 @@ export function useVideoGeneration() {
         ...prev,
         referenceImage: imageData,
       };
-      console.log('📝 Video state updated with referenceImage:', {
-        hasReferenceImage: !!newState.referenceImage,
-        referenceImageLength: newState.referenceImage?.length,
+      
+      console.log('📝 Video state updated:', {
+        previousHasImage: !!prev.referenceImage,
+        previousImageLength: prev.referenceImage?.length,
+        newHasImage: !!newState.referenceImage,
+        newImageLength: newState.referenceImage?.length,
+        imagePreview: newState.referenceImage ? newState.referenceImage.substring(0, 80) + '...' : null,
       });
+      
       return newState;
     });
   }, []);
@@ -114,8 +120,13 @@ export function useVideoGeneration() {
         promptLength: prompt.length,
         hasReferenceImage: !!referenceImage,
         referenceImageLength: referenceImage?.length,
+        referenceImageType: typeof referenceImage,
+        referenceImagePreview: referenceImage ? referenceImage.substring(0, 80) + '...' : null,
+        videoStateReferenceImage: video.referenceImage ? video.referenceImage.substring(0, 80) + '...' : null,
+        videoStateHasImage: !!video.referenceImage,
         currentVideoUrl: currentVideoUrlRef.current,
         pollingActive: !!pollingTimeoutRef.current,
+        timestamp: new Date().toISOString(),
       });
       
       if (!apiKey) {

@@ -18,6 +18,16 @@ const Index = () => {
     useVideoGeneration();
 
   const handleGenerate = () => {
+    console.log('🎯 handleGenerate called:', {
+      hasApiKey: !!apiKey,
+      promptLength: prompt.length,
+      hasReferenceImage: !!video.referenceImage,
+      referenceImageLength: video.referenceImage?.length,
+      referenceImagePreview: video.referenceImage ? video.referenceImage.substring(0, 80) + '...' : null,
+      options: video.options,
+      timestamp: new Date().toISOString(),
+    });
+
     if (!apiKey) {
       toast.error('APIキーを設定してください');
       setSettingsOpen(true);
@@ -33,6 +43,13 @@ const Index = () => {
       toast.error('プロンプトは500文字以内にしてください');
       return;
     }
+
+    console.log('📤 generateVideoを呼び出します:', {
+      prompt: prompt.substring(0, 50) + '...',
+      options: video.options,
+      hasReferenceImage: !!video.referenceImage,
+      referenceImageLength: video.referenceImage?.length,
+    });
 
     generateVideo(prompt, video.options, video.referenceImage);
   };

@@ -51,19 +51,25 @@ function buildFormData(
   options: GenerationOptions,
   referenceImage?: string | null
 ): FormData {
+  console.log('🏗️ buildFormData開始:', {
+    model: options.model,
+    promptLength: prompt.length,
+    size: options.size,
+    seconds: options.seconds,
+    hasReferenceImage: !!referenceImage,
+    referenceImageLength: referenceImage?.length,
+    referenceImageType: typeof referenceImage,
+    referenceImagePreview: referenceImage ? referenceImage.substring(0, 80) + '...' : null,
+    timestamp: new Date().toISOString(),
+  });
+
   const formData = new FormData();
   formData.append('model', options.model);
   formData.append('prompt', prompt);
   formData.append('size', options.size);
   formData.append('seconds', options.seconds);
 
-  console.log('🔍 FormData構築:', {
-    model: options.model,
-    promptLength: prompt.length,
-    size: options.size,
-    seconds: options.seconds,
-    hasReferenceImage: !!referenceImage,
-  });
+  console.log('✅ 基本パラメータをFormDataに追加完了');
 
   // 参照画像がある場合は追加
   if (referenceImage && referenceImage.trim() !== '') {
