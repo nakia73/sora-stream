@@ -1,7 +1,8 @@
 import { useRef, useState, useEffect } from 'react';
-import { Upload, X, Image as ImageIcon } from 'lucide-react';
+import { Upload, X, Image as ImageIcon, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface ImageUploadProps {
   onImageSelect: (imageData: string | null) => void;
@@ -18,8 +19,33 @@ export function ImageUpload({
 }: ImageUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [currentSize, setCurrentSize] = useState<string>(targetSize);
+  const [needsResize, setNeedsResize] = useState(false);
+  const lastFileRef = useRef<File | null>(null);
 
-  // currentImageが変更されたらpreviewUrlも更新
+  // targetSizeが変更された場合の処理
+  useEffect(() => {
+    console.log('🔄 targetSize変更検知:', {
+      previousSize: currentSize,
+      newSize: targetSize,
+      hasImage: !!previewUrl,
+      hasFile: !!lastFileRef.current,
+    });
+
+    if (targetSize !== currentSize) {
+      if (previewUrl && lastFileRef.current) {
+        // 画像がある場合は再リサイズが必要
+        console.log('⚠️ 解像度変更検知 - 再リサイズが必要です');
+        setNeedsResize(true);
+        toast.warning('解像度が変更されました。画像を再アップロードしてください。', {
+          duration: 5000,
+        });
+      }
+      setCurrentSize(targetSize);
+    }
+  }, [targetSize, currentSize, previewUrl]);
+
+  // currentImageが外部から変更された場合の処理
   useEffect(() => {
     console.log('🖼️ ImageUpload: currentImage変更検知:', {
       hasCurrentImage: !!currentImage,
@@ -29,6 +55,7 @@ export function ImageUpload({
     
     if (currentImage !== previewUrl) {
       setPreviewUrl(currentImage);
+      setNeedsResize(false);
       console.log('✅ previewUrlを更新しました');
     }
   }, [currentImage, previewUrl]);
@@ -57,6 +84,25 @@ export function ImageUpload({
                 height: img.height,
               });
 
+              // 解像度チェック
+              const originalPixels = img.width * img.height;
+              const targetPixels = targetWidth * targetHeight;
+              const resolutionRatio = originalPixels / targetPixels;
+
+              console.log('📊 解像度分析:', {
+                originalPixels,
+                targetPixels,
+                resolutionRatio: resolutionRatio.toFixed(2),
+                isUpscaling: resolutionRatio < 1,
+              });
+
+              if (resolutionRatio < 0.5) {
+                console.warn('⚠️ 画像解像度が目標の50%未満です - 品質が低下する可能性があります');
+                toast.warning('画像の解像度が低いため、品質が低下する可能性があります', {
+                  duration: 5000,
+                });
+              }
+
               const canvas = document.createElement('canvas');
               canvas.width = targetWidth;
               canvas.height = targetHeight;
@@ -77,6 +123,10 @@ export function ImageUpload({
               // 背景を黒で塗りつぶし
               ctx.fillStyle = '#000000';
               ctx.fillRect(0, 0, targetWidth, targetHeight);
+
+              // 高品質な画像補間を有効化
+              ctx.imageSmoothingEnabled = true;
+              ctx.imageSmoothingQuality = 'high';
 
               // 画像を描画
               ctx.drawImage(img, x, y, scaledWidth, scaledHeight);
@@ -150,16 +200,22 @@ export function ImageUpload({
     try {
       console.log('🔄 画像処理を開始します...');
       
+      // ファイルを保存（再リサイズ用）
+      lastFileRef.current = file;
+      
       // 画像を指定サイズにリサイズ
       const resizedBase64 = await resizeImage(file);
       
       console.log('📤 親コンポーネントに画像データを送信:', {
         base64Length: resizedBase64.length,
         base64Preview: resizedBase64.substring(0, 80) + '...',
+        targetSize,
       });
       
       // プレビューを更新
       setPreviewUrl(resizedBase64);
+      setCurrentSize(targetSize);
+      setNeedsResize(false);
       
       // 親コンポーネントに通知
       onImageSelect(resizedBase64);
@@ -173,10 +229,35 @@ export function ImageUpload({
     }
   };
 
+  const handleResize = async () => {
+    if (!lastFileRef.current) {
+      console.error('❌ リサイズするファイルがありません');
+      toast.error('ファイルが見つかりません。再度アップロードしてください。');
+      return;
+    }
+
+    try {
+      console.log('🔄 画像を再リサイズします:', targetSize);
+      const resizedBase64 = await resizeImage(lastFileRef.current);
+      
+      setPreviewUrl(resizedBase64);
+      setCurrentSize(targetSize);
+      setNeedsResize(false);
+      onImageSelect(resizedBase64);
+      
+      toast.success(`画像を${targetSize}にリサイズしました`);
+    } catch (error) {
+      console.error('❌ 再リサイズエラー:', error);
+      toast.error('再リサイズに失敗しました');
+    }
+  };
+
   const handleRemove = () => {
     console.log('🗑️ 画像削除処理開始');
     
     setPreviewUrl(null);
+    setNeedsResize(false);
+    lastFileRef.current = null;
     onImageSelect(null);
     
     if (fileInputRef.current) {
@@ -194,14 +275,43 @@ export function ImageUpload({
         参照画像（任意）
       </label>
       
+      {needsResize && previewUrl && (
+        <Alert variant="destructive" className="border-amber-500 bg-amber-50 dark:bg-amber-950">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-800 dark:text-amber-200">
+            解像度設定が変更されました。画像を再リサイズしてください。
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleResize}
+              className="ml-2 h-7 text-xs"
+            >
+              今すぐリサイズ
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {previewUrl ? (
-        <div className="relative group rounded-lg overflow-hidden border border-border bg-muted/50">
+        <div className={`relative group rounded-lg overflow-hidden border ${needsResize ? 'border-amber-500' : 'border-border'} bg-muted/50`}>
           <img 
             src={previewUrl} 
             alt="参照画像" 
             className="w-full h-48 object-contain"
           />
-          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+            {needsResize && (
+              <Button
+                variant="default"
+                size="sm"
+                onClick={handleResize}
+                disabled={disabled}
+                className="gap-2"
+              >
+                <Upload className="w-4 h-4" />
+                リサイズ
+              </Button>
+            )}
             <Button
               variant="destructive"
               size="sm"
@@ -213,8 +323,8 @@ export function ImageUpload({
               削除
             </Button>
           </div>
-          <div className="absolute top-2 right-2 bg-black/70 text-white text-xs px-2 py-1 rounded">
-            {targetSize}
+          <div className={`absolute top-2 right-2 px-2 py-1 rounded text-xs ${needsResize ? 'bg-amber-500 text-white' : 'bg-black/70 text-white'}`}>
+            {needsResize ? `要リサイズ → ${targetSize}` : currentSize}
           </div>
         </div>
       ) : (
@@ -238,7 +348,7 @@ export function ImageUpload({
               <div className="text-sm">
                 <span className="font-medium">クリックして画像を選択</span>
                 <div className="text-xs mt-1">PNG, JPG, WebP (最大10MB)</div>
-                <div className="text-xs text-primary mt-1">
+                <div className="text-xs text-primary mt-1 font-medium">
                   自動的に {targetSize} にリサイズされます
                 </div>
               </div>
@@ -247,9 +357,14 @@ export function ImageUpload({
         </div>
       )}
       
-      <p className="text-xs text-muted-foreground">
-        参照画像を設定すると、画像の雰囲気やスタイルを反映した動画が生成されます。
-      </p>
+      <div className="space-y-1">
+        <p className="text-xs text-muted-foreground">
+          参照画像を設定すると、画像の雰囲気やスタイルを反映した動画が生成されます。
+        </p>
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          💡 ヒント: 解像度を変更する前に画像をアップロードすると、自動的に最適なサイズにリサイズされます。
+        </p>
+      </div>
     </div>
   );
 }
