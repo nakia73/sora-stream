@@ -98,13 +98,10 @@ const Index = () => {
       <div className="max-w-4xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div className="space-y-1">
+          <div>
             <h1 className="text-4xl font-bold bg-gradient-to-r from-primary to-secondary bg-clip-text text-transparent">
-              Sora 2 動画生成
+              Sora Stream
             </h1>
-            <p className="text-muted-foreground">
-              テキストから動画を生成する AI アプリケーション
-            </p>
           </div>
           <Button
             variant="outline"
