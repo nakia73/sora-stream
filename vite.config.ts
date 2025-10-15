@@ -5,7 +5,7 @@ import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
-  base: '/sora2-api-app/',  // リポジトリ名に合わせて変更してください
+  base: mode === 'production' ? '/sora2-api-app/' : '/',  // 本番環境のみリポジトリ名を設定
   server: {
     host: "::",
     port: 8080,
